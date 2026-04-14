@@ -1,0 +1,54 @@
+version: "3.9"
+
+networks:
+  ecommerce-net:
+    driver: bridge
+
+volumes:
+  postgres_data:
+
+services:
+  # ─────────────────────────────────────────────
+  # PostgreSQL — OLTP source database
+  # ─────────────────────────────────────────────
+  postgres:
+    image: postgres:15-alpine
+    command: postgres -c hba_file=/etc/postgresql/pg_hba.conf
+    container_name: ecommerce_postgres
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_USER: ecommerce_user
+      POSTGRES_PASSWORD: ecommerce_pass
+      POSTGRES_DB: ecommerce_db
+      POSTGRES_HOST_AUTH_METHOD: trust
+
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d
+      - ./postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf
+    networks:
+      - ecommerce-net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ecommerce_user -d ecommerce_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────────
+  # Placeholder stubs — uncomment on their day
+  # ─────────────────────────────────────────────
+
+  # zookeeper:
+  #   image: confluentinc/cp-zookeeper:7.5.0
+  #   ...
+
+  # kafka:
+  #   image: confluentinc/cp-kafka:7.5.0
+  #   ...
+
+  # airflow:
+  #   image: apache/airflow:2.8.0
+  #   ...
