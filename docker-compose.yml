@@ -6,29 +6,28 @@ networks:
 
 volumes:
   postgres_data:
+  zookeeper_data:
+  zookeeper_log:
+  kafka_data:
 
 services:
+
   # ─────────────────────────────────────────────
   # PostgreSQL — OLTP source database
   # ─────────────────────────────────────────────
   postgres:
     image: postgres:15-alpine
-    command: postgres -c hba_file=/etc/postgresql/pg_hba.conf
     container_name: ecommerce_postgres
     restart: unless-stopped
-
     environment:
       POSTGRES_USER: ecommerce_user
       POSTGRES_PASSWORD: ecommerce_pass
       POSTGRES_DB: ecommerce_db
-      POSTGRES_HOST_AUTH_METHOD: trust
-
     ports:
       - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./postgres/init:/docker-entrypoint-initdb.d
-      - ./postgres/pg_hba.conf:/etc/postgresql/pg_hba.conf
     networks:
       - ecommerce-net
     healthcheck:
@@ -38,15 +37,87 @@ services:
       retries: 5
 
   # ─────────────────────────────────────────────
+  # Zookeeper — Kafka coordination service
+  # ─────────────────────────────────────────────
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: ecommerce_zookeeper
+    restart: unless-stopped
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      ZOOKEEPER_SYNC_LIMIT: 2
+    ports:
+      - "2181:2181"
+    volumes:
+      - zookeeper_data:/var/lib/zookeeper/data
+      - zookeeper_log:/var/lib/zookeeper/log
+    networks:
+      - ecommerce-net
+
+  # ─────────────────────────────────────────────
+  # Kafka broker
+  # ─────────────────────────────────────────────
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: ecommerce_kafka
+    restart: unless-stopped
+    depends_on:
+      zookeeper:
+        condition: service_started
+        
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_LOG_RETENTION_HOURS: 168
+      KAFKA_LOG_SEGMENT_BYTES: 1073741824
+    ports:
+      - "9092:9092"
+      - "29092:29092"
+    volumes:
+      - kafka_data:/var/lib/kafka/data
+    networks:
+      - ecommerce-net
+    healthcheck:
+      test: ["CMD-SHELL", "kafka-broker-api-versions --bootstrap-server localhost:9092"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # ─────────────────────────────────────────────
+  # Kafka UI — browser-based topic management
+  # ─────────────────────────────────────────────
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: ecommerce_kafka_ui
+    restart: unless-stopped
+    depends_on:
+      kafka:
+        condition: service_started
+
+    environment:
+      KAFKA_CLUSTERS_0_NAME: ecommerce-local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2181
+    ports:
+      - "8080:8080"
+    networks:
+      - ecommerce-net
+
+  # ─────────────────────────────────────────────
   # Placeholder stubs — uncomment on their day
   # ─────────────────────────────────────────────
 
-  # zookeeper:
-  #   image: confluentinc/cp-zookeeper:7.5.0
-  #   ...
-
-  # kafka:
-  #   image: confluentinc/cp-kafka:7.5.0
+  # spark:
+  #   image: bitnami/spark:3.5
   #   ...
 
   # airflow:
