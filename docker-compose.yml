@@ -113,12 +113,56 @@ services:
       - ecommerce-net
 
   # ─────────────────────────────────────────────
+  # Spark — structured streaming engine
+  # ─────────────────────────────────────────────
+  spark-master:
+    image: apache/spark:3.5.0
+    container_name: ecommerce_spark_master
+    restart: unless-stopped
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
+    environment:
+      - SPARK_MASTER_HOST=spark-master
+      - SPARK_MASTER_PORT=7077
+      - SPARK_MASTER_WEBUI_PORT=8181
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION}
+      - S3_BUCKET_NAME=${S3_BUCKET_NAME}
+    ports:
+      - "8181:8181"
+      - "7077:7077"
+    volumes:
+      - ./scripts/streaming:/opt/spark-apps
+    networks:
+      - ecommerce-net
+    user: root
+
+  spark-worker:
+    image: apache/spark:3.5.0
+    container_name: ecommerce_spark_worker
+    restart: unless-stopped
+    command: /opt/spark/bin/spark-class org.apache.spark.deploy.worker.Worker spark://spark-master:7077
+    depends_on:
+      - spark-master
+    environment:
+      - SPARK_WORKER_MEMORY=2g
+      - SPARK_WORKER_CORES=2
+      - SPARK_WORKER_WEBUI_PORT=8182
+      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
+      - AWS_REGION=${AWS_REGION}
+      - S3_BUCKET_NAME=${S3_BUCKET_NAME}
+    ports:
+      - "8182:8182"
+    volumes:
+      - ./scripts/streaming:/opt/spark-apps
+    networks:
+      - ecommerce-net
+    user: root
+    
+  # ─────────────────────────────────────────────
   # Placeholder stubs — uncomment on their day
   # ─────────────────────────────────────────────
-
-  # spark:
-  #   image: bitnami/spark:3.5
-  #   ...
 
   # airflow:
   #   image: apache/airflow:2.8.0
