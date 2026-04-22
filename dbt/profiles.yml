@@ -9,6 +9,6 @@ ecommerce_dbt:
       role: "{{ env_var('SNOWFLAKE_ROLE') }}"
       database: "{{ env_var('SNOWFLAKE_DATABASE') }}"
       warehouse: "{{ env_var('SNOWFLAKE_WAREHOUSE') }}"
-      schema: STAGING
+      schema: RAW
       threads: 4
       client_session_keep_alive: False

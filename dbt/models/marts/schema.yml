@@ -1,0 +1,282 @@
+version: 2
+
+models:
+  - name: mart_orders
+    description: >
+      Wide orders fact table combining order attributes, customer demographics,
+      and line item summaries. One row per order. Primary table for all
+      order-related dashboard charts in Metabase.
+    columns:
+      - name: order_id
+        description: "UUID primary key from stg_orders_history."
+        tests:
+          - not_null
+          - unique
+      - name: customer_id
+        description: "Foreign key to mart_customers."
+        tests:
+          - not_null
+      - name: customer_full_name
+        description: "Concatenated first and last name from stg_customers."
+      - name: customer_email
+        description: "Lowercased email from stg_customers."
+      - name: customer_city
+        description: "Customer's registered city."
+      - name: customer_state
+        description: "Customer's registered state."
+      - name: customer_country
+        description: "Customer's registered country."
+      - name: customer_since
+        description: "Timestamp when the customer account was created."
+      - name: customer_tenure_days_at_order
+        description: "Number of days between customer account creation and this order date."
+      - name: order_status
+        description: "Uppercased order status. One of PENDING, PROCESSING, CONFIRMED, SHIPPED, DELIVERED, CANCELLED, RETURNED, REFUNDED."
+        tests:
+          - not_null
+      - name: payment_method
+        description: "Uppercased payment method used for this order."
+      - name: order_value_tier
+        description: "Bucketed order value: high (>=500), medium (>=100), low (<100)."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['high', 'medium', 'low']
+      - name: order_date
+        description: "Timestamp when the order was placed."
+        tests:
+          - not_null
+      - name: shipped_date
+        description: "Timestamp when the order was shipped. NULL for unshipped orders."
+      - name: delivered_date
+        description: "Timestamp when the order was delivered. NULL for undelivered orders."
+      - name: days_to_ship
+        description: "Days between order_date and shipped_date. NULL if not yet shipped."
+      - name: is_delivered
+        description: "TRUE if order_status = DELIVERED."
+      - name: is_cancelled
+        description: "TRUE if order_status = CANCELLED."
+      - name: is_refunded
+        description: "TRUE if order_status = REFUNDED."
+      - name: total_amount
+        description: "Order total from raw orders table."
+        tests:
+          - not_null
+      - name: total_line_revenue
+        description: "Sum of line_revenue across all order items (after discounts)."
+      - name: total_discount_amount
+        description: "Total dollar value of discounts applied across all line items."
+      - name: line_item_count
+        description: "Number of distinct product lines in this order."
+      - name: total_units
+        description: "Total quantity of all items ordered."
+      - name: primary_category
+        description: "Most frequently purchased product category in this order."
+      - name: order_date_day
+        description: "Date portion of order_date for daily aggregation."
+      - name: order_week
+        description: "Week-truncated date for weekly aggregation."
+      - name: order_month
+        description: "Month-truncated date for monthly aggregation."
+
+  - name: mart_customers
+    description: >
+      Customer 360 view with lifetime purchase metrics and behavioral segments.
+      One row per customer including prospects who have never ordered.
+      Segments: platinum, gold, silver, bronze, prospect.
+    columns:
+      - name: customer_id
+        description: "UUID primary key from stg_customers."
+        tests:
+          - not_null
+          - unique
+      - name: full_name
+        description: "Concatenated first and last name."
+      - name: email
+        description: "Lowercased customer email."
+        tests:
+          - not_null
+      - name: city
+        description: "Customer's registered city."
+      - name: state
+        description: "Customer's registered state."
+      - name: country
+        description: "Customer's registered country."
+      - name: customer_since
+        description: "Account creation timestamp."
+      - name: total_orders
+        description: "Lifetime count of all orders placed."
+      - name: delivered_orders
+        description: "Count of orders with status DELIVERED."
+      - name: cancelled_orders
+        description: "Count of orders with status CANCELLED."
+      - name: lifetime_value
+        description: "Sum of total_amount across all orders."
+      - name: avg_order_value
+        description: "Average order value across lifetime."
+      - name: first_order_date
+        description: "Timestamp of the customer's first order."
+      - name: last_order_date
+        description: "Timestamp of the customer's most recent order."
+      - name: days_since_last_order
+        description: "Days between last_order_date and now. Used for recency scoring."
+      - name: preferred_payment_method
+        description: "Most frequently used payment method."
+      - name: preferred_category
+        description: "Most frequently purchased product category."
+      - name: customer_segment
+        description: "Value segment: platinum (LTV>=2000), gold (>=1000), silver (>=500), bronze (any order), prospect (no orders)."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['platinum', 'gold', 'silver', 'bronze', 'prospect']
+      - name: is_active_customer
+        description: "TRUE if customer placed an order within the last 90 days."
+      - name: delivery_rate
+        description: "Ratio of delivered_orders to total_orders. NULL for prospects."
+      - name: cancellation_rate
+        description: "Ratio of cancelled_orders to total_orders. NULL for prospects."
+
+  - name: mart_products
+    description: >
+      Product performance and inventory health combining catalog data,
+      sales metrics from order lines, and latest inventory state.
+      One row per product.
+    columns:
+      - name: product_id
+        description: "UUID primary key from stg_products."
+        tests:
+          - not_null
+          - unique
+      - name: product_name
+        description: "Product display name."
+        tests:
+          - not_null
+      - name: category
+        description: "Top-level product category."
+      - name: subcategory
+        description: "Product subcategory."
+      - name: sku
+        description: "Stock keeping unit identifier."
+      - name: unit_price
+        description: "Listed unit price from product catalog."
+      - name: is_active
+        description: "TRUE if the product is currently active in the catalog."
+      - name: supplier_name
+        description: "Name of the supplying company."
+      - name: total_orders
+        description: "Number of distinct orders containing this product."
+      - name: total_units_sold
+        description: "Total quantity sold across all non-cancelled, non-refunded orders."
+      - name: total_revenue
+        description: "Total revenue generated by this product after discounts."
+      - name: unique_customers
+        description: "Number of distinct customers who purchased this product."
+      - name: current_stock
+        description: "Most recent stock level from inventory updates, falling back to catalog stock_quantity."
+      - name: current_stock_health
+        description: "Stock health category: out_of_stock (0), critical (<=10), low (<=50), healthy (>50)."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['out_of_stock', 'critical', 'low', 'healthy']
+      - name: performance_tier
+        description: "Sales performance bucket: top_performer (>=10k), strong (>=5k), moderate (>=1k), low_performer (>0), no_sales."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['top_performer', 'strong', 'moderate', 'low_performer', 'no_sales']
+      - name: revenue_per_unit_sold
+        description: "Average revenue per unit sold. Useful for margin analysis."
+
+  - name: mart_revenue_daily
+    description: >
+      Daily revenue aggregates for time-series trend charts.
+      Excludes cancelled and refunded orders.
+      One row per calendar day that had at least one qualifying order.
+    columns:
+      - name: date_day
+        description: "Calendar date — primary key."
+        tests:
+          - not_null
+          - unique
+      - name: total_orders
+        description: "Count of qualifying orders on this day."
+        tests:
+          - not_null
+      - name: unique_customers
+        description: "Count of distinct customers who ordered on this day."
+      - name: gross_revenue
+        description: "Sum of total_amount for all qualifying orders."
+        tests:
+          - not_null
+      - name: net_revenue
+        description: "Sum of total_line_revenue (after discounts) for all qualifying orders."
+      - name: total_discounts
+        description: "Total dollar value of discounts applied on this day."
+      - name: avg_order_value
+        description: "Average order value for the day."
+      - name: avg_days_to_ship
+        description: "Average days to ship for orders shipped on this day."
+
+  - name: mart_funnel
+    description: >
+      Session-level funnel analysis from browse to purchase.
+      Built from sessionized clickstream events joined to customer profiles.
+      One row per session. Used for conversion rate and drop-off analysis.
+    columns:
+      - name: session_id
+        description: "Primary key — session identifier from clickstream."
+        tests:
+          - not_null
+          - unique
+      - name: user_id
+        description: "User identifier. May be null for fully anonymous sessions."
+      - name: customer_full_name
+        description: "Matched customer name. NULL if anonymous or unmatched."
+      - name: is_known_customer
+        description: "TRUE if user_id matched a record in mart_customers."
+      - name: device_type
+        description: "Device type used in this session (mobile, desktop, tablet)."
+      - name: browser
+        description: "Browser used in this session."
+      - name: session_start
+        description: "Timestamp of the first event in the session."
+        tests:
+          - not_null
+      - name: session_end
+        description: "Timestamp of the last event in the session."
+      - name: session_duration_sec
+        description: "Total session duration in seconds."
+      - name: session_date
+        description: "Date portion of session_start for daily aggregation."
+      - name: total_events
+        description: "Total number of click events in this session."
+      - name: unique_products_viewed
+        description: "Count of distinct products viewed in this session."
+      - name: funnel_stage
+        description: "Highest funnel stage reached: purchase > checkout > add_to_cart > product_view > browse_only."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['purchase', 'checkout', 'add_to_cart', 'product_view', 'browse_only']
+      - name: session_quality
+        description: "Session quality label: converted, engaged, active, bounce."
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['converted', 'engaged', 'active', 'bounce']
+      - name: funnel_stage_num
+        description: "Numeric representation of funnel_stage for chart ordering (1=browse_only, 5=purchase)."
+      - name: converted
+        description: "TRUE if funnel_stage = purchase."
+      - name: cart_abandoned
+        description: "TRUE if session added to cart but did not purchase."
+      - name: checkout_abandoned
+        description: "TRUE if session reached checkout but did not purchase."

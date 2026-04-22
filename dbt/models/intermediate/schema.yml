@@ -1,0 +1,105 @@
+version: 2
+
+models:
+  - name: int_order_lines
+    description: "Enriched order line items. Joins order items → orders → products. One row per line item. Grain: order_item_id."
+    columns:
+      - name: order_item_id
+        description: "Primary key — UUID from stg_order_items."
+        tests:
+          - not_null
+          - unique
+      - name: order_id
+        tests:
+          - not_null
+      - name: product_id
+        tests:
+          - not_null
+      - name: customer_id
+        tests:
+          - not_null
+      - name: line_revenue
+        tests:
+          - not_null
+
+  - name: int_orders_with_customers
+    description: "Orders enriched with customer demographics. One row per order. Grain: order_id."
+    columns:
+      - name: order_id
+        description: "Primary key — UUID from stg_orders_history."
+        tests:
+          - not_null
+          - unique
+      - name: customer_id
+        tests:
+          - not_null
+      - name: total_amount
+        tests:
+          - not_null
+      - name: order_date
+        tests:
+          - not_null
+
+  - name: int_streaming_orders_enriched
+    description: "Kafka streaming order events enriched with customer profile. One row per event. Grain: event_id."
+    columns:
+      - name: event_id
+        description: "Primary key — UUID from stg_orders_stream."
+        tests:
+          - not_null
+          - unique
+      - name: order_id
+        tests:
+          - not_null
+      - name: event_timestamp
+        tests:
+          - not_null
+
+  - name: int_clickstream_sessionized
+    description: "Clickstream events collapsed to session level. One row per session. Grain: session_id."
+    columns:
+      - name: session_id
+        description: "Primary key — session identifier from stg_clickstream."
+        tests:
+          - not_null
+          - unique
+      - name: session_start
+        tests:
+          - not_null
+      - name: funnel_stage
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['purchase', 'checkout', 'add_to_cart', 'product_view', 'browse_only']
+      - name: session_quality
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['converted', 'engaged', 'active', 'bounce']
+
+  - name: int_inventory_enriched
+    description: "Inventory movement events enriched with product and supplier context. One row per event. Grain: event_id."
+    columns:
+      - name: event_id
+        description: "Primary key — UUID from stg_inventory_updates."
+        tests:
+          - not_null
+          - unique
+      - name: product_id
+        tests:
+          - not_null
+      - name: event_timestamp
+        tests:
+          - not_null
+      - name: movement_type
+        tests:
+          - not_null
+      - name: stock_health
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['out_of_stock', 'critical', 'low', 'healthy']
+                

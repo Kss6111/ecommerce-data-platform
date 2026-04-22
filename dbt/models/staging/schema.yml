@@ -1,0 +1,166 @@
+version: 2
+
+models:
+  - name: stg_customers
+    description: "Cleaned customer master data. One row per customer. Deduplicated on customer_id keeping latest ingestion."
+    columns:
+      - name: customer_id
+        description: "UUID primary key."
+        tests:
+          - not_null
+          - unique
+      - name: email
+        description: "Lowercased customer email."
+        tests:
+          - not_null
+      - name: first_name
+        tests:
+          - not_null
+      - name: last_name
+        tests:
+          - not_null
+      - name: created_at
+        tests:
+          - not_null
+
+  - name: stg_products
+    description: "Cleaned product catalog. One row per product. Deduplicated on product_id keeping latest ingestion."
+    columns:
+      - name: product_id
+        description: "UUID primary key."
+        tests:
+          - not_null
+          - unique
+      - name: supplier_id
+        tests:
+          - not_null
+      - name: product_name
+        tests:
+          - not_null
+      - name: unit_price
+        tests:
+          - not_null
+      - name: is_active
+        tests:
+          - not_null
+
+  - name: stg_suppliers
+    description: "Cleaned supplier master data. One row per supplier. Deduplicated on supplier_id keeping latest ingestion."
+    columns:
+      - name: supplier_id
+        description: "UUID primary key."
+        tests:
+          - not_null
+          - unique
+      - name: supplier_name
+        tests:
+          - not_null
+      - name: email
+        tests:
+          - not_null
+
+  - name: stg_orders_history
+    description: "Cleaned historical orders. One row per order. Deduplicated on order_id keeping latest ingestion."
+    columns:
+      - name: order_id
+        description: "UUID primary key."
+        tests:
+          - not_null
+          - unique
+      - name: customer_id
+        tests:
+          - not_null
+      - name: order_status
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['PENDING', 'PROCESSING', 'CONFIRMED', 'SHIPPED', 'DELIVERED', 'CANCELLED', 'RETURNED', 'REFUNDED']
+      - name: total_amount
+        tests:
+          - not_null
+      - name: order_date
+        tests:
+          - not_null
+
+  - name: stg_order_items
+    description: "Cleaned order line items. One row per order item. Deduplicated on order_item_id keeping latest ingestion."
+    columns:
+      - name: order_item_id
+        description: "UUID primary key."
+        tests:
+          - not_null
+          - unique
+      - name: order_id
+        tests:
+          - not_null
+      - name: product_id
+        tests:
+          - not_null
+      - name: quantity
+        tests:
+          - not_null
+      - name: subtotal
+        tests:
+          - not_null
+
+  - name: stg_orders_stream
+    description: "Cleaned real-time order events from Kafka. One row per event."
+    columns:
+      - name: event_id
+        description: "UUID primary key for the streaming event."
+        tests:
+          - not_null
+          - unique
+      - name: order_id
+        tests:
+          - not_null
+      - name: customer_id
+        tests:
+          - not_null
+      - name: event_timestamp
+        description: "Parsed from VARCHAR — rows with unparseable timestamps are filtered in the model."
+        tests:
+          - not_null
+      - name: event_type
+        tests:
+          - not_null
+
+  - name: stg_clickstream
+    description: "Cleaned user clickstream events from Kafka. One row per event."
+    columns:
+      - name: event_id
+        description: "UUID primary key for the clickstream event."
+        tests:
+          - not_null
+          - unique
+      - name: session_id
+        tests:
+          - not_null
+      - name: event_timestamp
+        tests:
+          - not_null
+      - name: event_type
+        tests:
+          - not_null
+
+  - name: stg_inventory_updates
+    description: "Cleaned inventory movement events from Kafka. One row per event."
+    columns:
+      - name: event_id
+        description: "UUID primary key for the inventory event."
+        tests:
+          - not_null
+          - unique
+      - name: product_id
+        tests:
+          - not_null
+      - name: event_timestamp
+        tests:
+          - not_null
+      - name: movement_type
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ['restock', 'depletion', 'adjustment']
