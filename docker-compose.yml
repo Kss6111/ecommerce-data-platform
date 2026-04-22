@@ -1,5 +1,56 @@
 version: "3.9"
 
+# ─────────────────────────────────────────────
+# Shared Airflow config (anchor)
+# ─────────────────────────────────────────────
+x-airflow-common:
+  &airflow-common
+  build: ./airflow
+  environment:
+    &airflow-common-env
+    # Core Airflow settings
+    AIRFLOW__CORE__EXECUTOR: LocalExecutor
+    AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://ecommerce_user:ecommerce_pass@postgres:5432/airflow_db
+    AIRFLOW__CORE__FERNET_KEY: 'ZmDfcTF7_60GrrY167zsiPd67pEvs0aGOv2oasOM1Pg='
+    AIRFLOW__CORE__DAGS_ARE_PAUSED_AT_CREATION: 'true'
+    AIRFLOW__CORE__LOAD_EXAMPLES: 'false'
+    AIRFLOW__WEBSERVER__EXPOSE_CONFIG: 'true'
+    AIRFLOW__WEBSERVER__SECRET_KEY: 'ecommerce_local_dev_secret'
+    AIRFLOW__API__AUTH_BACKENDS: 'airflow.api.auth.backend.basic_auth,airflow.api.auth.backend.session'
+    AIRFLOW__CORE__TEST_CONNECTION: 'Enabled'
+    AIRFLOW__SCHEDULER__ENABLE_HEALTH_CHECK: 'true'
+    AIRFLOW__CORE__PARALLELISM: '2'
+    # AWS — passed through from .env
+    AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID}
+    AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY}
+    AWS_REGION: ${AWS_REGION}
+    S3_BUCKET_NAME: ${S3_BUCKET_NAME}
+    # Snowflake — passed through from .env
+    SNOWFLAKE_ACCOUNT: ${SNOWFLAKE_ACCOUNT}
+    SNOWFLAKE_USER: ${SNOWFLAKE_USER}
+    SNOWFLAKE_PASSWORD: ${SNOWFLAKE_PASSWORD}
+    SNOWFLAKE_WAREHOUSE: ${SNOWFLAKE_WAREHOUSE}
+    SNOWFLAKE_DATABASE: ${SNOWFLAKE_DATABASE}
+    SNOWFLAKE_SCHEMA: ${SNOWFLAKE_SCHEMA}
+    SNOWFLAKE_ROLE: ${SNOWFLAKE_ROLE}
+    # PostgreSQL — internal Docker hostname, not 127.0.0.1
+    POSTGRES_HOST: postgres
+    POSTGRES_PORT: 5432
+    POSTGRES_DB: ecommerce_db
+    POSTGRES_USER: ecommerce_user
+    POSTGRES_PASSWORD: ecommerce_pass
+  volumes:
+    - ./airflow/dags:/opt/airflow/dags
+    - ./airflow/logs:/opt/airflow/logs
+    - ./airflow/plugins:/opt/airflow/plugins
+    - ./dbt:/opt/dbt
+    - ./scripts:/opt/scripts
+  networks:
+    - ecommerce-net
+  depends_on:
+    postgres:
+      condition: service_healthy
+
 networks:
   ecommerce-net:
     driver: bridge
@@ -65,7 +116,6 @@ services:
     depends_on:
       zookeeper:
         condition: service_started
-        
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
@@ -102,7 +152,6 @@ services:
     depends_on:
       kafka:
         condition: service_started
-
     environment:
       KAFKA_CLUSTERS_0_NAME: ecommerce-local
       KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
@@ -159,11 +208,86 @@ services:
     networks:
       - ecommerce-net
     user: root
-    
-  # ─────────────────────────────────────────────
-  # Placeholder stubs — uncomment on their day
-  # ─────────────────────────────────────────────
 
-  # airflow:
-  #   image: apache/airflow:2.8.0
-  #   ...
+  # ─────────────────────────────────────────────
+  # Airflow — orchestration
+  # ─────────────────────────────────────────────
+  airflow-init:
+    <<: *airflow-common
+    container_name: ecommerce_airflow_init
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        echo ">>> Upgrading Airflow DB..."
+        airflow db upgrade
+
+        echo ">>> Creating admin user..."
+        airflow users create \
+          --username admin \
+          --firstname Admin \
+          --lastname User \
+          --role Admin \
+          --email admin@ecommerce.local \
+          --password admin || true
+
+        echo ">>> Registering connections..."
+        airflow connections add 'postgres_ecommerce' \
+          --conn-type 'postgres' \
+          --conn-host 'postgres' \
+          --conn-port '5432' \
+          --conn-login 'ecommerce_user' \
+          --conn-password 'ecommerce_pass' \
+          --conn-schema 'ecommerce_db' || true
+
+        airflow connections add 'snowflake_default' \
+          --conn-type 'snowflake' \
+          --conn-login "${SNOWFLAKE_USER}" \
+          --conn-password "${SNOWFLAKE_PASSWORD}" \
+          --conn-schema "${SNOWFLAKE_SCHEMA}" \
+          --conn-extra "{\"account\": \"${SNOWFLAKE_ACCOUNT}\", \"warehouse\": \"${SNOWFLAKE_WAREHOUSE}\", \"database\": \"${SNOWFLAKE_DATABASE}\", \"role\": \"${SNOWFLAKE_ROLE}\"}" || true
+
+        airflow connections add 'aws_default' \
+          --conn-type 'aws' \
+          --conn-login "${AWS_ACCESS_KEY_ID}" \
+          --conn-password "${AWS_SECRET_ACCESS_KEY}" \
+          --conn-extra "{\"region_name\": \"${AWS_REGION}\"}" || true
+
+        echo ">>> Airflow init complete."
+    restart: on-failure
+
+  airflow-webserver:
+    <<: *airflow-common
+    container_name: ecommerce_airflow_webserver
+    command: webserver
+    ports:
+      - "8090:8080"
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+
+  airflow-scheduler:
+    <<: *airflow-common
+    container_name: ecommerce_airflow_scheduler
+    command: scheduler
+    healthcheck:
+      test: ["CMD-SHELL", "airflow jobs check --job-type SchedulerJob --hostname \"$${HOSTNAME}\""]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+    restart: unless-stopped
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy

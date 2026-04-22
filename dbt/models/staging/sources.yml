@@ -1,0 +1,15 @@
+version: 2
+
+sources:
+  - name: raw
+    database: ECOMMERCE_DB
+    schema: RAW
+    tables:
+      - name: customers
+      - name: products
+      - name: suppliers
+      - name: orders_history
+      - name: order_items
+      - name: orders_stream
+      - name: clickstream
+      - name: inventory_updates
