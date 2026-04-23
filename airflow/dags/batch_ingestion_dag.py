@@ -59,6 +59,19 @@ DEFAULT_ARGS = {
 log = logging.getLogger(__name__)
 
 
+def serialize_datetime_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Snowflake can misread Parquet timestamp physical types from pandas/pyarrow.
+    Serializing datetimes to ISO-8601 strings keeps the raw load stable.
+    """
+    out = df.copy()
+    for col in out.columns:
+        if pd.api.types.is_datetime64_any_dtype(out[col]):
+            out[col] = out[col].dt.strftime("%Y-%m-%dT%H:%M:%S%z")
+            out[col] = out[col].str.replace(r"([+-]\d{2})(\d{2})$", r"\1:\2", regex=True)
+    return out
+
+
 # --- Task 1: Extract PostgreSQL -> S3 Parquet --------------------------------
 def extract_postgres_to_s3(**context) -> dict:
     run_date = context["ds"]
@@ -77,9 +90,10 @@ def extract_postgres_to_s3(**context) -> dict:
             log.info("Extracting table: %s", table)
             df = pd.read_sql(f"SELECT * FROM {table}", pg_conn)
             row_count = len(df)
+            parquet_df = serialize_datetime_columns(df)
 
             buffer = io.BytesIO()
-            df.to_parquet(buffer, index=False, engine="pyarrow")
+            parquet_df.to_parquet(buffer, index=False, engine="pyarrow")
             buffer.seek(0)
 
             s3_key = f"{S3_PREFIX}/{table}/run_date={run_date}/{table}.parquet"
@@ -120,6 +134,8 @@ def validate_customers_quality(**context):
     )
     obj = s3.get_object(Bucket=S3_BUCKET, Key=key)
     df = pd.read_parquet(io.BytesIO(obj["Body"].read()))
+    for ts_col in ["created_at", "updated_at"]:
+        df[ts_col] = pd.to_datetime(df[ts_col], utc=True, errors="coerce")
     log.info("Loaded %d rows for GE validation", len(df))
 
     # GE context - ephemeral (no file system needed inside container)
@@ -225,6 +241,9 @@ def validate_orders_history_quality(**context):
     )
     obj = s3.get_object(Bucket=S3_BUCKET, Key=key)
     df = pd.read_parquet(io.BytesIO(obj["Body"].read()))
+    for ts_col in ["order_date", "created_at", "shipped_date", "delivered_date"]:
+        if ts_col in df.columns:
+            df[ts_col] = pd.to_datetime(df[ts_col], utc=True, errors="coerce")
     log.info("Loaded %d rows for GE validation", len(df))
 
     ctx = gx.get_context(mode="ephemeral")

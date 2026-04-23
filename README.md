@@ -1,5 +1,11 @@
 # E-Commerce Data Platform
 
+[![dbt CI](https://github.com/Kss6111/ecommerce-data-platform/actions/workflows/dbt_ci.yml/badge.svg?branch=main)](https://github.com/Kss6111/ecommerce-data-platform/actions/workflows/dbt_ci.yml)
+[![Python Lint and Tests](https://github.com/Kss6111/ecommerce-data-platform/actions/workflows/python_lint.yml/badge.svg?branch=main)](https://github.com/Kss6111/ecommerce-data-platform/actions/workflows/python_lint.yml)
+[![Docker Build](https://github.com/Kss6111/ecommerce-data-platform/actions/workflows/docker_build.yml/badge.svg?branch=main)](https://github.com/Kss6111/ecommerce-data-platform/actions/workflows/docker_build.yml)
+[![Terraform Plan](https://github.com/Kss6111/ecommerce-data-platform/actions/workflows/terraform_plan.yml/badge.svg?branch=main)](https://github.com/Kss6111/ecommerce-data-platform/actions/workflows/terraform_plan.yml)
+[![Terraform Apply](https://github.com/Kss6111/ecommerce-data-platform/actions/workflows/terraform_apply.yml/badge.svg?branch=main)](https://github.com/Kss6111/ecommerce-data-platform/actions/workflows/terraform_apply.yml)
+
 An end-to-end enterprise data engineering platform that ingests real-time 
 and batch data, processes it through a modern lakehouse architecture, 
 transforms it using dbt, and serves business insights via a live dashboard.
@@ -85,6 +91,9 @@ staging → intermediate → marts
 | Kafka UI | ecommerce_kafka_ui | 8080 |
 | Spark Master | ecommerce_spark_master | 7077 / 8181 |
 | Spark Worker | ecommerce_spark_worker | 8182 |
+| Airflow Webserver | ecommerce_airflow_webserver | 8090 |
+| Airflow Scheduler | ecommerce_airflow_scheduler | internal |
+| Metabase | ecommerce_metabase | 3000 |
 
 ---
 
@@ -120,14 +129,14 @@ staging → intermediate → marts
 
 | Phase | Description | Status |
 |-------|-------------|--------|
-| Phase 1 | Environment setup | ✅ Complete |
-| Phase 2 | Data generation and ingestion | ✅ Complete |
-| Phase 3 | Airflow orchestration | 🔄 In Progress |
-| Phase 4 | dbt transformations | ⏳ Pending |
-| Phase 5 | Data quality | ⏳ Pending |
-| Phase 6 | Terraform and infrastructure | ⏳ Pending |
-| Phase 7 | CI/CD | ⏳ Pending |
-| Phase 8 | Dashboard and launch | ⏳ Pending |
+| Phase 1 | Environment setup | Complete |
+| Phase 2 | Data generation and ingestion | Complete |
+| Phase 3 | Airflow orchestration | Complete |
+| Phase 4 | dbt transformations | Complete |
+| Phase 5 | Data quality | Complete |
+| Phase 6 | Terraform and infrastructure | Complete |
+| Phase 7 | CI/CD | In Progress |
+| Phase 8 | Dashboard and launch | In Progress |
 
 ---
 
