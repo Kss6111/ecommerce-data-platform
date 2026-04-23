@@ -1,0 +1,7 @@
+aws_region   = "us-east-1"
+bucket_name  = "ecommerce-data-platform-krutarth-2025"
+iam_user_name   = "ecommerce-platform-svc"
+iam_role_name   = "ecommerce-snowflake-role"
+iam_policy_name = "ecommerce-s3-policy"
+environment  = "production"
+project      = "ecommerce-data-platform"

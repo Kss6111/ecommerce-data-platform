@@ -1,4 +1,7 @@
-"""
+import pathlib
+
+streaming_dag = """\
+\"\"\"
 DAG: streaming_load_dag
 Streaming load: Delta Lake (S3) -> Snowflake RAW every 30 minutes
 
@@ -7,7 +10,7 @@ Flow per topic:
     2. validate_{topic}_quality     - GE validation (blocks load on failure)
     3. copy_streaming_{topic}       - COPY INTO RAW table
     4. update_watermark_{topic}     - persist loaded file keys
-"""
+\"\"\"
 
 from __future__ import annotations
 
@@ -222,9 +225,9 @@ def validate_streaming_quality(topic: str, **context):
             for er in vr["validation_result"]["results"]:
                 if not er["success"]:
                     failures.append(f"  FAIL {er['expectation_config']['type']}  result={er.get('result', {})}")
-        msg = "\n".join(failures)
-        log.error("%s GE validation FAILED:\n%s", topic, msg)
-        raise AirflowException(f"Data quality FAILED for {topic} — load blocked.\n{msg}")
+        msg = "\\n".join(failures)
+        log.error("%s GE validation FAILED:\\n%s", topic, msg)
+        raise AirflowException(f"Data quality FAILED for {topic} — load blocked.\\n{msg}")
 
     log.info("%s GE validation PASSED (%d expectations)", topic, len(suite.expectations))
 
@@ -244,14 +247,14 @@ def copy_streaming_to_snowflake(topic: str, **context) -> int:
         cur = conn.cursor()
         for s3_key in new_files:
             stage_path = s3_key.replace("raw/", "", 1)
-            copy_sql = f"""
+            copy_sql = f\"\"\"
                 COPY INTO {table}
                 FROM @ECOMMERCE_DB.RAW.S3_RAW_STAGE/{stage_path}
                 FILE_FORMAT = (TYPE = 'PARQUET' SNAPPY_COMPRESSION = TRUE)
                 MATCH_BY_COLUMN_NAME = CASE_INSENSITIVE
                 PURGE = FALSE
                 ON_ERROR = 'CONTINUE'
-            """
+            \"\"\"
             try:
                 cur.execute(copy_sql)
                 result = cur.fetchall()
@@ -313,3 +316,9 @@ with DAG(
             op_kwargs={"topic": topic},
         )
         t_discover >> t_validate >> t_copy >> t_watermark
+"""
+
+pathlib.Path("airflow/dags").mkdir(parents=True, exist_ok=True)
+with open("airflow/dags/streaming_load_dag.py", "w", encoding="utf-8", newline="\n") as f:
+    f.write(streaming_dag)
+print("Written: airflow/dags/streaming_load_dag.py")
