@@ -60,6 +60,7 @@ volumes:
   zookeeper_data:
   zookeeper_log:
   kafka_data:
+  metabase_data:
 
 services:
 
@@ -291,3 +292,17 @@ services:
         condition: service_completed_successfully
       postgres:
         condition: service_healthy
+
+  metabase:
+    image: metabase/metabase:v0.55.8
+    container_name: ecommerce_metabase
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - metabase_data:/metabase-data
+    environment:
+      MB_DB_FILE: /metabase-data/metabase.db
+      MB_JETTY_PORT: 3000
+    networks:
+      - ecommerce-net

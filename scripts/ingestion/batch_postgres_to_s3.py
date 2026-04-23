@@ -122,6 +122,19 @@ def df_to_parquet_bytes(df: pd.DataFrame) -> bytes:
     return buffer.getvalue()
 
 
+def serialize_datetime_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Snowflake can misread native Parquet timestamps produced from pandas.
+    Persisting ISO-8601 strings keeps downstream COPY INTO deterministic.
+    """
+    out = df.copy()
+    for col in out.columns:
+        if pd.api.types.is_datetime64_any_dtype(out[col]):
+            out[col] = out[col].dt.strftime("%Y-%m-%dT%H:%M:%S%z")
+            out[col] = out[col].str.replace(r"([+-]\d{2})(\d{2})$", r"\1:\2", regex=True)
+    return out
+
+
 def build_s3_key(table: str, run_ts: datetime) -> str:
     """
     Pattern: raw/postgres/<table>/year=YYYY/month=MM/day=DD/<table>_<timestamp>.parquet
@@ -202,7 +215,7 @@ def main():
             if str(df[col].dtype) == "object":
                 df[col] = df[col].astype(str)
 
-        parquet_bytes = df_to_parquet_bytes(df)
+        parquet_bytes = df_to_parquet_bytes(serialize_datetime_columns(df))
         s3_key        = build_s3_key(table, run_ts)
 
         upload_to_s3(s3_client, parquet_bytes, s3_key)
@@ -233,7 +246,7 @@ def main():
             if str(df[col].dtype) == "object":
                 df[col] = df[col].astype(str)
 
-        parquet_bytes = df_to_parquet_bytes(df)
+        parquet_bytes = df_to_parquet_bytes(serialize_datetime_columns(df))
         s3_key        = build_s3_key(table, run_ts)
 
         upload_to_s3(s3_client, parquet_bytes, s3_key)

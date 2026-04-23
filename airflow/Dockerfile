@@ -13,6 +13,7 @@ RUN pip install --no-cache-dir \
     "apache-airflow-providers-amazon==8.2.0" \
     "snowflake-connector-python==3.7.0" \
     "dbt-snowflake==1.7.3" \
+    "great_expectations==1.16.0" \
     "pyarrow==14.0.1" \
     "pandas==2.1.4" \
     "psycopg2-binary==2.9.9" \
