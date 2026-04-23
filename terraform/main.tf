@@ -1,6 +1,3 @@
-// Workflow trigger note: documentation/comment-only changes under terraform/
-// are enough to exercise the Terraform GitHub Actions plan/apply pipeline.
-
 module "s3" {
   source      = "./modules/s3"
   bucket_name = var.bucket_name

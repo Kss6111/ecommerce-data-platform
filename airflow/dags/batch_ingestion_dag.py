@@ -111,9 +111,8 @@ def extract_postgres_to_s3(**context) -> dict:
 # --- Task 2a: GE validation - customers --------------------------------------
 def validate_customers_quality(**context):
     """
-    Runs Great Expectations suite against the customers Parquet file that was
-    just written to S3 by extract_postgres_to_s3. Raises AirflowException on
-    any expectation failure, which blocks the Snowflake load.
+    Run a Great Expectations suite against the customers Parquet file
+    produced by extract_postgres_to_s3. Any failure blocks the load.
     """
     import great_expectations as gx
     import great_expectations.expectations as gxe
@@ -123,7 +122,7 @@ def validate_customers_quality(**context):
     run_date = ti.xcom_pull(task_ids="extract_postgres_to_s3", key="run_date")
     s3_paths = ti.xcom_pull(task_ids="extract_postgres_to_s3", key="s3_paths")
 
-    # Load the exact file that was just uploaded
+    # Load the exact file written by this DAG run.
     key = s3_paths["customers"]
     log.info("Validating s3://%s/%s", S3_BUCKET, key)
     s3 = boto3.client(

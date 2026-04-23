@@ -71,7 +71,7 @@ def load_state() -> dict:
 def save_state(state: dict) -> None:
     with open(STATE_FILE, "w") as f:
         json.dump(state, f, indent=2, default=str)
-    log.info(f"State saved to {STATE_FILE}")
+    log.info("State saved to %s", STATE_FILE)
 
 
 # ── DB helpers ────────────────────────────────────────────────────────────────
@@ -91,21 +91,21 @@ def extract_incremental(
             WHERE {ts_column} > %(last_ts)s
             ORDER BY {ts_column} ASC
         """
-        log.info(f"  Incremental extract: {table} where {ts_column} > {last_extracted_at}")
+        log.info("  Incremental extract: %s where %s > %s", table, ts_column, last_extracted_at)
         df = pd.read_sql_query(query, conn, params={"last_ts": last_extracted_at})
     else:
         query = f"SELECT * FROM {table} ORDER BY {ts_column} ASC"
-        log.info(f"  Full extract (first run): {table}")
+        log.info("  Full extract (first run): %s", table)
         df = pd.read_sql_query(query, conn)
 
-    log.info(f"  Extracted {len(df):,} rows from {table}")
+    log.info("  Extracted %s rows from %s", f"{len(df):,}", table)
     return df
 
 
 def extract_full(conn, table: str) -> pd.DataFrame:
-    log.info(f"  Full extract: {table}")
+    log.info("  Full extract: %s", table)
     df = pd.read_sql_query(f"SELECT * FROM {table}", conn)
-    log.info(f"  Extracted {len(df):,} rows from {table}")
+    log.info("  Extracted %s rows from %s", f"{len(df):,}", table)
     return df
 
 
